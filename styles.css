@@ -17,9 +17,13 @@
 }
 
 /* Make inner formatting spans (revealed `[[` / `]]`) follow the wrapper's
-   animated colour instead of their own static grey. */
-.wikiflash-hit * {
-  color: inherit !important;
+   animated colour instead of their own static grey. This intentionally uses
+   editor-scoped specificity instead of declaration priority so plugin review linters stay
+   quiet while still overriding theme formatting-token colours. */
+.markdown-source-view.mod-cm6 .cm-line .wikiflash-hit .cm-formatting,
+.markdown-source-view.mod-cm6 .cm-line .wikiflash-hit .cm-formatting-link,
+.markdown-source-view.mod-cm6 .cm-line .wikiflash-hit .cm-hmd-internal-link {
+  color: inherit;
 }
 
 /* Pop, hold, then fade — solid for the first ~55% of the duration, then a

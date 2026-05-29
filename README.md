@@ -15,6 +15,8 @@ It fires in two situations:
 The flash pops to full colour, holds briefly, then fades smoothly back to the
 brackets' resting colour — no jarring snap.
 
+![WikiFlash preview](assets/preview.gif)
+
 It also supports Obsidian pop-out windows, so the flash keeps the same appearance
 in secondary windows as it does in the main workspace.
 

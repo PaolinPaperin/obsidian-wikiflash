@@ -12,3 +12,6 @@ AGENTS.md
 node_modules/
 *.log
 .vscode/
+
+# Local disposable demo vault for screenshots / GIF recording
+WikiFlash Demo Vault/

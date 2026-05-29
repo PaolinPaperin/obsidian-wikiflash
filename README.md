@@ -15,12 +15,16 @@ It fires in two situations:
 The flash pops to full colour, holds briefly, then fades smoothly back to the
 brackets' resting colour — no jarring snap.
 
+It also supports Obsidian pop-out windows, so the flash keeps the same appearance
+in secondary windows as it does in the main workspace.
+
 ## Settings
 
 Everything is customizable under **Settings → WikiFlash**:
 
 | Setting | What it does |
 |---|---|
+| **Preview** | Shows a sample flash that replays as you change settings. |
 | **Enable flash** | Master on/off. |
 | **Box colour** | Colour of the highlight box (default: a vivid yellow, like Xcode). |
 | **Bracket text colour** | Colour of the `[[ ]]` characters during the flash. Use white for a dark box, black for a light one. |
@@ -29,6 +33,14 @@ Everything is customizable under **Settings → WikiFlash**:
 | **Corner radius** | Roundness of the highlight box. |
 
 Respects your system **Reduce motion** setting (no animation when enabled).
+
+## Command
+
+WikiFlash adds one command:
+
+| Command | What it does |
+|---|---|
+| **Test flash** | Flashes the brackets of the `[[wikilink]]` under the cursor without changing the note. |
 
 ## How it works
 
@@ -40,6 +52,13 @@ purely visual overlay that is added and then removed on a timer.
 
 It works in **Live Preview** and **Source** editing modes. It does not hook
 Obsidian's link suggester, so there's no reliance on private APIs.
+
+## Privacy and safety
+
+WikiFlash is local-only. It does not use network requests, telemetry, filesystem
+access, shell commands, dynamic code execution, or raw HTML injection. It stores
+only its own visual settings through Obsidian's plugin data API, and it never
+modifies note content.
 
 ## Installation
 

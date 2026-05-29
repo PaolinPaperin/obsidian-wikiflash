@@ -44,3 +44,11 @@
     animation: none;
   }
 }
+
+/* The settings-tab preview swatch: a legible `[[ ]]` sample that replays the
+   flash. Scoped to the setting item so it never touches editor marks. */
+.setting-item .wikiflash-hit {
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-medium);
+  padding: 2px 8px;
+}

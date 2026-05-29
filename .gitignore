@@ -1,6 +1,9 @@
 # Per-user plugin settings — never publish these
 data.json
 
+# Local Claude Code project notes (contains local machine paths) — keep private
+CLAUDE.md
+
 # macOS
 .DS_Store
 

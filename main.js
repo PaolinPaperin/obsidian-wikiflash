@@ -31,9 +31,18 @@
  * Scope: Live Preview / source editing (CM6). Not Reading view.
  */
 
-const { Plugin, PluginSettingTab, Setting } = require('obsidian');
+const { Plugin, PluginSettingTab, Setting, Notice } = require('obsidian');
 const { StateField, StateEffect } = require('@codemirror/state');
 const { Decoration, EditorView, ViewPlugin } = require('@codemirror/view');
+
+// The CSS custom properties we set on each window's <body> (and clear on unload).
+const WF_VARS = [
+  '--wikiflash-bg-start',
+  '--wikiflash-bg-end',
+  '--wikiflash-text',
+  '--wikiflash-duration',
+  '--wikiflash-radius',
+];
 
 const DEFAULT_SETTINGS = {
   enabled: true,
@@ -191,29 +200,79 @@ module.exports = class WikiFlashPlugin extends Plugin {
   async onload() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
     currentSettings = this.settings;
+
+    // Style the main window plus any popout windows already open. Each window
+    // has its own document, so the custom properties must be set on each.
+    this.styledDocs = new Set([document]);
+    this.app.workspace.iterateAllLeaves((leaf) => {
+      const doc = leaf.view && leaf.view.containerEl && leaf.view.containerEl.ownerDocument;
+      if (doc) this.styledDocs.add(doc);
+    });
+    this.registerEvent(
+      this.app.workspace.on('window-open', (workspaceWindow, win) => {
+        this.styledDocs.add(win.document);
+        this.applyStyleToDoc(win.document);
+      })
+    );
+    this.registerEvent(
+      this.app.workspace.on('window-close', (workspaceWindow, win) => {
+        this.clearStyleFromDoc(win.document);
+        this.styledDocs.delete(win.document);
+      })
+    );
     this.applyStyle();
+
     this.registerEditorExtension([wikiFlashField, wikiFlashDetector]);
     this.addSettingTab(new WikiFlashSettingTab(this.app, this));
+
+    // Lets you preview the flash without typing a link — flashes the brackets of
+    // the link the caret is in (purely visual; never edits the note).
+    this.addCommand({
+      id: 'test-flash',
+      name: 'Test flash',
+      editorCallback: (editor) => {
+        const view = editor.cm;
+        if (!view) return;
+        const link = findEnclosingWikilink(view.state);
+        if (!link) {
+          new Notice('Place the cursor inside a [[link]] to test the flash.');
+          return;
+        }
+        scheduleFlash(
+          view,
+          link.empty
+            ? [{ from: link.from, to: link.to }]
+            : [
+                { from: link.from, to: link.from + 2 },
+                { from: link.to - 2, to: link.to },
+              ]
+        );
+      },
+    });
   }
 
   onunload() {
-    const s = document.body.style;
-    [
-      '--wikiflash-bg-start',
-      '--wikiflash-bg-end',
-      '--wikiflash-text',
-      '--wikiflash-duration',
-      '--wikiflash-radius',
-    ].forEach((p) => s.removeProperty(p));
+    if (this.styledDocs) for (const doc of this.styledDocs) this.clearStyleFromDoc(doc);
   }
 
   applyStyle() {
-    const s = document.body.style;
+    for (const doc of this.styledDocs) this.applyStyleToDoc(doc);
+  }
+
+  applyStyleToDoc(doc) {
+    if (!doc || !doc.body) return;
+    const s = doc.body.style;
     s.setProperty('--wikiflash-bg-start', hexToRgba(this.settings.color, this.settings.opacity));
     s.setProperty('--wikiflash-bg-end', hexToRgba(this.settings.color, 0));
     s.setProperty('--wikiflash-text', this.settings.text);
     s.setProperty('--wikiflash-duration', this.settings.duration + 'ms');
     s.setProperty('--wikiflash-radius', this.settings.radius + 'px');
+  }
+
+  clearStyleFromDoc(doc) {
+    if (!doc || !doc.body) return;
+    const s = doc.body.style;
+    WF_VARS.forEach((p) => s.removeProperty(p));
   }
 
   async saveSettings() {
@@ -229,9 +288,25 @@ class WikiFlashSettingTab extends PluginSettingTab {
     this.plugin = plugin;
   }
 
+  /** Re-run the flash animation on the preview swatch by toggling the class
+   *  (remove → force reflow → add). The swatch reads the same `--wikiflash-*`
+   *  vars `applyStyle` just set, so it mirrors the current settings. */
+  replayPreview() {
+    const el = this.previewEl;
+    if (!el) return;
+    el.removeClass('wikiflash-hit');
+    void el.offsetWidth;
+    el.addClass('wikiflash-hit');
+  }
+
   display() {
     const { containerEl } = this;
     containerEl.empty();
+
+    const preview = new Setting(containerEl)
+      .setName('Preview')
+      .setDesc('A sample flash using your current settings. Replays when you change a value below.');
+    this.previewEl = preview.controlEl.createSpan({ cls: 'wikiflash-hit', text: '[[ ]]' });
 
     new Setting(containerEl)
       .setName('Enable flash')
@@ -240,6 +315,7 @@ class WikiFlashSettingTab extends PluginSettingTab {
         t.setValue(this.plugin.settings.enabled).onChange(async (v) => {
           this.plugin.settings.enabled = v;
           await this.plugin.saveSettings();
+          this.replayPreview();
         })
       );
 
@@ -250,6 +326,7 @@ class WikiFlashSettingTab extends PluginSettingTab {
         cp.setValue(this.plugin.settings.color).onChange(async (v) => {
           this.plugin.settings.color = v;
           await this.plugin.saveSettings();
+          this.replayPreview();
         })
       );
 
@@ -260,6 +337,7 @@ class WikiFlashSettingTab extends PluginSettingTab {
         cp.setValue(this.plugin.settings.text).onChange(async (v) => {
           this.plugin.settings.text = v;
           await this.plugin.saveSettings();
+          this.replayPreview();
         })
       );
 
@@ -274,6 +352,7 @@ class WikiFlashSettingTab extends PluginSettingTab {
           .onChange(async (v) => {
             this.plugin.settings.opacity = v;
             await this.plugin.saveSettings();
+            this.replayPreview();
           })
       );
 
@@ -288,6 +367,7 @@ class WikiFlashSettingTab extends PluginSettingTab {
           .onChange(async (v) => {
             this.plugin.settings.duration = v;
             await this.plugin.saveSettings();
+            this.replayPreview();
           })
       );
 
@@ -302,6 +382,7 @@ class WikiFlashSettingTab extends PluginSettingTab {
           .onChange(async (v) => {
             this.plugin.settings.radius = v;
             await this.plugin.saveSettings();
+            this.replayPreview();
           })
       );
   }

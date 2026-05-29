@@ -3,6 +3,7 @@ data.json
 
 # Local Claude Code project notes (contains local machine paths) — keep private
 CLAUDE.md
+AGENTS.md
 
 # macOS
 .DS_Store

@@ -1,0 +1,10 @@
+# Per-user plugin settings — never publish these
+data.json
+
+# macOS
+.DS_Store
+
+# Editor / tooling
+node_modules/
+*.log
+.vscode/

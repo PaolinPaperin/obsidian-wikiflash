@@ -1,0 +1,46 @@
+/* WikiFlash — the Xcode-style flash applied to a freshly typed `[[]]` or to the
+   brackets of a wikilink you navigate into. The mark span is created at flash
+   time, so the keyframe runs once on insertion.
+
+   Appearance is driven by CSS custom properties set on <body> from the plugin
+   settings (box colour / bracket text colour / opacity / duration / radius).
+
+   Both the box colour AND the bracket text colour are animated together: the
+   text fades from the chosen colour back to the theme's natural bracket colour
+   (--text-faint) as the box fades out. `forwards` holds that end state — which
+   equals the brackets' resting look — so retiring the decoration is seamless,
+   with no jarring snap back to grey. */
+
+.wikiflash-hit {
+  border-radius: var(--wikiflash-radius, 4px);
+  animation: wikiflash var(--wikiflash-duration, 420ms) ease-out forwards;
+}
+
+/* Make inner formatting spans (revealed `[[` / `]]`) follow the wrapper's
+   animated colour instead of their own static grey. */
+.wikiflash-hit * {
+  color: inherit !important;
+}
+
+/* Pop, hold, then fade — solid for the first ~55% of the duration, then a
+   smooth fade of BOTH background and text. */
+@keyframes wikiflash {
+  0% {
+    background-color: var(--wikiflash-bg-start, rgba(255, 214, 10, 1));
+    color: var(--wikiflash-text, #000);
+  }
+  55% {
+    background-color: var(--wikiflash-bg-start, rgba(255, 214, 10, 1));
+    color: var(--wikiflash-text, #000);
+  }
+  100% {
+    background-color: var(--wikiflash-bg-end, rgba(255, 214, 10, 0));
+    color: var(--text-faint);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wikiflash-hit {
+    animation: none;
+  }
+}

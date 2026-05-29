@@ -1,0 +1,10 @@
+{
+  "id": "wikiflash",
+  "name": "WikiFlash",
+  "version": "1.0.0",
+  "minAppVersion": "1.4.0",
+  "description": "Flashes a wikilink's [[ ]] brackets when you create one or move the cursor inside it — an Xcode-style brace-match cue. Fully colour-customizable.",
+  "author": "Paolo",
+  "authorUrl": "https://github.com/PaolinPaperin",
+  "isDesktopOnly": false
+}

@@ -50,8 +50,8 @@ const DEFAULT_SETTINGS = {
   color: '#fff34d', // box colour — clean yellow, like Xcode's brace flash
   text: '#111111', // bracket text colour during the flash (pick white for dark boxes)
   opacity: 1, // full, saturated — blooms then fades to 0
-  duration: 620, // ms — total animation; the colour holds before the final fade
-  radius: 6, // px — corner rounding of the highlight box
+  duration: 600, // ms — total animation; the colour holds before the final fade
+  radius: 3, // px — corner rounding of the highlight box (Xcode-style)
 };
 
 // Live copy of settings the module-scope ViewPlugin reads (plugin keeps it fresh).

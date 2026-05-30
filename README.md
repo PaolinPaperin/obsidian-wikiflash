@@ -15,7 +15,9 @@ It fires in two situations:
 The flash pops to full colour, holds briefly, then fades smoothly back to the
 brackets' resting colour — no jarring snap.
 
-![WikiFlash preview](assets/preview.gif)
+| Link creation | Link navigation |
+|---|---|
+| ![Creating a wikilink flashes only the brackets](assets/demo1.gif) | ![Moving into a wikilink flashes only the brackets](assets/demo2.gif) |
 
 It also supports Obsidian pop-out windows, so the flash keeps the same appearance
 in secondary windows as it does in the main workspace.

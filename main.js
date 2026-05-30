@@ -46,11 +46,11 @@ const WF_VARS = [
 
 const DEFAULT_SETTINGS = {
   enabled: true,
-  color: '#ffd60a', // box colour — vivid yellow, like Xcode's brace flash
-  text: '#000000', // bracket text colour during the flash (pick white for dark boxes)
-  opacity: 1, // full, saturated — pops then fades to 0
-  duration: 480, // ms — total animation; the colour holds for the first half
-  radius: 3, // px — corner rounding of the highlight box
+  color: '#fff34d', // box colour — clean yellow, like Xcode's brace flash
+  text: '#111111', // bracket text colour during the flash (pick white for dark boxes)
+  opacity: 1, // full, saturated — blooms then fades to 0
+  duration: 620, // ms — total animation; the colour holds before the final fade
+  radius: 6, // px — corner rounding of the highlight box
 };
 
 // Live copy of settings the module-scope ViewPlugin reads (plugin keeps it fresh).
@@ -192,7 +192,7 @@ function hexToRgba(hex, alpha) {
   const r = parseInt(h.slice(0, 2), 16);
   const g = parseInt(h.slice(2, 4), 16);
   const b = parseInt(h.slice(4, 6), 16);
-  if ([r, g, b].some(Number.isNaN)) return `rgba(255, 221, 87, ${alpha})`;
+  if ([r, g, b].some(Number.isNaN)) return `rgba(255, 243, 77, ${alpha})`;
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 

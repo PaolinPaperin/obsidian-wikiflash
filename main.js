@@ -47,8 +47,12 @@ const WF_VARS = [
 
 const DEFAULT_SETTINGS = {
   enabled: true,
-  color: '#fff34d', // box colour — clean yellow, like Xcode's brace flash
-  text: '#111111', // bracket text colour during the flash (pick white for dark boxes)
+  // Box ("flash") and bracket-text colours are per-theme: the matching pair is
+  // chosen from the active window's light/dark mode and re-picked on theme change.
+  colorLight: '#fff34d', // box colour in light mode — clean yellow, like Xcode
+  colorDark: '#fff34d', // box colour in dark mode
+  textLight: '#111111', // bracket text colour during the flash, light mode
+  textDark: '#111111', // bracket text colour during the flash, dark mode
   opacity: 1, // full, saturated — blooms then fades to 0
   duration: 600, // ms — total animation; the colour holds before the final fade
   radius: 3, // px — corner rounding of the highlight box (Xcode-style)
@@ -203,7 +207,22 @@ function hexToRgba(hex, alpha) {
 
 module.exports = class WikiFlashPlugin extends Plugin {
   async onload() {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const loaded = await this.loadData();
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, loaded);
+    // Migrate pre-1.2 single-colour settings into the per-theme pairs, seeding
+    // both light and dark from the old value so existing users keep their look.
+    if (loaded) {
+      if (loaded.color !== undefined) {
+        if (loaded.colorLight === undefined) this.settings.colorLight = loaded.color;
+        if (loaded.colorDark === undefined) this.settings.colorDark = loaded.color;
+      }
+      if (loaded.text !== undefined) {
+        if (loaded.textLight === undefined) this.settings.textLight = loaded.text;
+        if (loaded.textDark === undefined) this.settings.textDark = loaded.text;
+      }
+      delete this.settings.color;
+      delete this.settings.text;
+    }
     currentSettings = this.settings;
 
     // Style the main window plus any popout windows already open. Each window
@@ -225,6 +244,9 @@ module.exports = class WikiFlashPlugin extends Plugin {
         this.styledDocs.delete(win.document);
       })
     );
+    // Light/dark toggle (and theme swaps) fire 'css-change' — re-pick the
+    // matching per-theme colours for every styled window.
+    this.registerEvent(this.app.workspace.on('css-change', () => this.applyStyle()));
     this.applyStyle();
 
     this.registerEditorExtension([wikiFlashField, wikiFlashDetector]);
@@ -258,10 +280,15 @@ module.exports = class WikiFlashPlugin extends Plugin {
 
   applyStyleToDoc(doc) {
     if (!doc || !doc.body) return;
+    // Each window carries its own theme class, so pick per-doc: a popout can be
+    // in a different mode than the main window.
+    const dark = doc.body.classList.contains('theme-dark');
+    const color = dark ? this.settings.colorDark : this.settings.colorLight;
+    const text = dark ? this.settings.textDark : this.settings.textLight;
     const s = doc.body.style;
-    s.setProperty('--wikiflash-bg-start', hexToRgba(this.settings.color, this.settings.opacity));
-    s.setProperty('--wikiflash-bg-end', hexToRgba(this.settings.color, 0));
-    s.setProperty('--wikiflash-text', this.settings.text);
+    s.setProperty('--wikiflash-bg-start', hexToRgba(color, this.settings.opacity));
+    s.setProperty('--wikiflash-bg-end', hexToRgba(color, 0));
+    s.setProperty('--wikiflash-text', text);
     s.setProperty('--wikiflash-duration', this.settings.duration + 'ms');
     s.setProperty('--wikiflash-radius', this.settings.radius + 'px');
   }
@@ -316,27 +343,41 @@ class WikiFlashSettingTab extends PluginSettingTab {
         })
       );
 
-    new Setting(containerEl)
-      .setName('Box colour')
-      .setDesc('Colour of the highlight box. Default is a vivid yellow, like Xcode.')
-      .addColorPicker((cp) =>
-        cp.setValue(this.plugin.settings.color).onChange(async (v) => {
-          this.plugin.settings.color = v;
-          await this.plugin.saveSettings();
-          this.replayPreview();
-        })
-      );
+    const colorSetting = (name, desc, key) =>
+      new Setting(containerEl)
+        .setName(name)
+        .setDesc(desc)
+        .addColorPicker((cp) =>
+          cp.setValue(this.plugin.settings[key]).onChange(async (v) => {
+            this.plugin.settings[key] = v;
+            await this.plugin.saveSettings();
+            this.replayPreview();
+          })
+        );
 
-    new Setting(containerEl)
-      .setName('Bracket text colour')
-      .setDesc('Colour of the [[ ]] characters during the flash. Use white for dark boxes (e.g. teal), black for light ones.')
-      .addColorPicker((cp) =>
-        cp.setValue(this.plugin.settings.text).onChange(async (v) => {
-          this.plugin.settings.text = v;
-          await this.plugin.saveSettings();
-          this.replayPreview();
-        })
-      );
+    new Setting(containerEl).setName('Light mode').setHeading();
+    colorSetting(
+      'Box colour (light)',
+      'Colour of the highlight box in light mode. Default is a vivid yellow, like Xcode.',
+      'colorLight'
+    );
+    colorSetting(
+      'Bracket text colour (light)',
+      'Colour of the [[ ]] characters during the flash in light mode. Use black for light boxes.',
+      'textLight'
+    );
+
+    new Setting(containerEl).setName('Dark mode').setHeading();
+    colorSetting(
+      'Box colour (dark)',
+      'Colour of the highlight box in dark mode.',
+      'colorDark'
+    );
+    colorSetting(
+      'Bracket text colour (dark)',
+      'Colour of the [[ ]] characters during the flash in dark mode. Use white for dark boxes (e.g. teal).',
+      'textDark'
+    );
 
     new Setting(containerEl)
       .setName('Opacity')

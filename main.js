@@ -12,8 +12,9 @@
  *   - A ViewPlugin watches editor updates. Two triggers, both flashing brackets:
  *       1. CREATION — on a doc change, when the caret sits between a freshly
  *          auto-paired empty pair `[[|]]` (the moment you type `[[` and Obsidian
- *          inserts `]]`). Flashes the 4-char `[[]]`. Doesn't re-fire as you type
- *          the name.
+ *          inserts `]]`). Flashes the opening `[[` and closing `]]` as separate
+ *          bracket marks, so text typed inside the link is never covered by an
+ *          in-flight creation flash. Doesn't re-fire as you type the name.
  *       2. NAVIGATION — on a pure selection change (no doc edit), when the caret
  *          moves INTO an existing non-empty `[[name]]` (arrow or click). Flashes
  *          the `[[` and `]]` brackets only, leaving the name alone. Fires once on
@@ -62,14 +63,21 @@ const removeFlash = StateEffect.define(); // value: id (number)
 
 let nextId = 1;
 
+function bracketRanges(from, to) {
+  return [
+    { from, to: from + 2 },
+    { from: to - 2, to },
+  ];
+}
+
 /** If the caret sits between a just-created empty bracket pair `[[|]]` (what you
- *  get the instant you type `[[` and Obsidian auto-adds `]]`), return the
- *  { from, to } range covering the 4-char `[[]]`; otherwise null. */
+ *  get the instant you type `[[` and Obsidian auto-adds `]]`), return bracket
+ *  ranges for the opening `[[` and closing `]]`; otherwise null. */
 function detectBracketPair(state) {
   const head = state.selection.main.head;
   if (state.sliceDoc(head - 2, head) !== '[[') return null;
   if (state.sliceDoc(head, head + 2) !== ']]') return null;
-  return { from: head - 2, to: head + 2 };
+  return bracketRanges(head - 2, head + 2);
 }
 
 /** The `[[...]]` token strictly enclosing the caret on its line, or null.
@@ -158,10 +166,10 @@ const wikiFlashDetector = ViewPlugin.fromClass(
       // IME safety: never react mid-composition (Italian accents etc.).
       if (update.view.composing) return;
 
-      // 1) CREATION: typing `[[` auto-pairs to `[[]]` — flash the empty pair.
+      // 1) CREATION: typing `[[` auto-pairs to `[[]]` — flash only brackets.
       if (update.docChanged) {
-        const pair = detectBracketPair(update.state);
-        if (pair) scheduleFlash(update.view, [pair]);
+        const pairRanges = detectBracketPair(update.state);
+        if (pairRanges) scheduleFlash(update.view, pairRanges);
       }
 
       // 2) NAVIGATION: a pure cursor move into an existing non-empty link —
@@ -175,10 +183,7 @@ const wikiFlashDetector = ViewPlugin.fromClass(
         link &&
         !link.empty
       ) {
-        scheduleFlash(update.view, [
-          { from: link.from, to: link.from + 2 },
-          { from: link.to - 2, to: link.to },
-        ]);
+        scheduleFlash(update.view, bracketRanges(link.from, link.to));
       }
       // Always keep the key in sync (incl. after edits shift positions).
       this.lastLinkKey = key;
@@ -238,15 +243,7 @@ module.exports = class WikiFlashPlugin extends Plugin {
           new Notice('Place the cursor inside a [[link]] to test the flash.');
           return;
         }
-        scheduleFlash(
-          view,
-          link.empty
-            ? [{ from: link.from, to: link.to }]
-            : [
-                { from: link.from, to: link.from + 2 },
-                { from: link.to - 2, to: link.to },
-              ]
-        );
+        scheduleFlash(view, bracketRanges(link.from, link.to));
       },
     });
   }

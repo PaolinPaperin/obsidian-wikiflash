@@ -46,7 +46,6 @@ const WF_VARS = [
 ];
 
 const DEFAULT_SETTINGS = {
-  enabled: true,
   // Box ("flash") and bracket-text colours are per-theme: the matching pair is
   // chosen from the active window's light/dark mode and re-picked on theme change.
   colorLight: '#fff34d', // box colour in light mode — clean yellow, like Xcode
@@ -57,6 +56,71 @@ const DEFAULT_SETTINGS = {
   duration: 600, // ms — total animation; the colour holds before the final fade
   radius: 3, // px — corner rounding of the highlight box (Xcode-style)
 };
+
+const PREVIEW_DESC = 'A sample wikilink using the light-mode colours. Replays when settings change or when you press Replay.';
+const DARK_PREVIEW_DESC = 'A sample wikilink using the dark-mode colours.';
+const RESET_DEFAULTS_DESC = 'Restore the default colours, opacity, duration, and corner radius.';
+const SLIDER_SETTINGS_HEADING = 'Flash shape and timing';
+
+const COLOR_SETTING_GROUPS = [
+  {
+    heading: 'Light mode',
+    items: [
+      {
+        name: 'Box colour (light)',
+        desc: 'Colour of the highlight box in light mode. Default is a vivid yellow, like Xcode.',
+        key: 'colorLight',
+      },
+      {
+        name: 'Bracket text colour (light)',
+        desc: 'Colour of the [[ ]] characters during the flash in light mode. Use black for light boxes.',
+        key: 'textLight',
+      },
+    ],
+  },
+  {
+    heading: 'Dark mode',
+    items: [
+      {
+        name: 'Box colour (dark)',
+        desc: 'Colour of the highlight box in dark mode.',
+        key: 'colorDark',
+      },
+      {
+        name: 'Bracket text colour (dark)',
+        desc: 'Colour of the [[ ]] characters during the flash in dark mode. Use white for dark boxes (e.g. teal).',
+        key: 'textDark',
+      },
+    ],
+  },
+];
+
+const SLIDER_SETTINGS = [
+  {
+    name: 'Opacity',
+    desc: 'Starting intensity of the flash before it fades to transparent.',
+    key: 'opacity',
+    min: 0.1,
+    max: 1,
+    step: 0.05,
+  },
+  {
+    name: 'Duration',
+    desc: 'How long the fade lasts, in milliseconds.',
+    key: 'duration',
+    min: 120,
+    max: 1200,
+    step: 20,
+  },
+  {
+    name: 'Corner radius',
+    desc: 'Roundness of the highlight box, in pixels.',
+    key: 'radius',
+    min: 0,
+    max: 12,
+    step: 1,
+  },
+];
 
 // Live copy of settings the module-scope ViewPlugin reads (plugin keeps it fresh).
 let currentSettings = Object.assign({}, DEFAULT_SETTINGS);
@@ -166,7 +230,6 @@ const wikiFlashDetector = ViewPlugin.fromClass(
     }
 
     update(update) {
-      if (!currentSettings.enabled) return;
       // IME safety: never react mid-composition (Italian accents etc.).
       if (update.view.composing) return;
 
@@ -222,6 +285,7 @@ module.exports = class WikiFlashPlugin extends Plugin {
       }
       delete this.settings.color;
       delete this.settings.text;
+      delete this.settings.enabled;
     }
     currentSettings = this.settings;
 
@@ -310,118 +374,225 @@ class WikiFlashSettingTab extends PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     this.plugin = plugin;
+    this.previewEls = new Set();
   }
 
-  /** Re-run the flash animation on the preview swatch by toggling the class
-   *  (remove → force reflow → add). The swatch reads the same `--wikiflash-*`
-   *  vars `applyStyle` just set, so it mirrors the current settings. */
+  /** Re-run the flash animation on every preview swatch by toggling the class
+   *  (remove → force reflow → add). Each bracket span carries its own
+   *  theme-specific `--wikiflash-*` vars, so light and dark previews can render
+   *  side by side while still flashing the opening and closing brackets only. */
   replayPreview() {
-    const el = this.previewEl;
-    if (!el) return;
-    el.removeClass('wikiflash-hit');
-    void el.offsetWidth;
-    el.addClass('wikiflash-hit');
+    const els = Array.from(this.previewEls).filter((el) => el && el.isConnected);
+    if (!els.length) return;
+    for (const el of els) {
+      this.applyPreviewStyle(el, el.dataset.wikiflashPreviewMode);
+      el.removeClass('wikiflash-hit');
+    }
+    void els[0].offsetWidth;
+    for (const el of els) el.addClass('wikiflash-hit');
+  }
+
+  styleSettingsDoc(doc) {
+    if (!doc || !this.plugin.styledDocs) return;
+    this.plugin.styledDocs.add(doc);
+    this.plugin.applyStyleToDoc(doc);
+  }
+
+  applyPreviewStyle(el, mode) {
+    const boxKey = mode === 'dark' ? 'colorDark' : 'colorLight';
+    const textKey = mode === 'dark' ? 'textDark' : 'textLight';
+    const s = el.style;
+    s.setProperty('--wikiflash-bg-start', hexToRgba(this.plugin.settings[boxKey], this.plugin.settings.opacity));
+    s.setProperty('--wikiflash-bg-end', hexToRgba(this.plugin.settings[boxKey], 0));
+    s.setProperty('--wikiflash-text', this.plugin.settings[textKey]);
+    s.setProperty('--wikiflash-text-rest', mode === 'dark' ? '#b7b5ac' : '#6f6a60');
+    s.setProperty('--wikiflash-duration', this.plugin.settings.duration + 'ms');
+    s.setProperty('--wikiflash-radius', this.plugin.settings.radius + 'px');
+  }
+
+  createPreviewBracket(frame, mode, text) {
+    const el = frame.createSpan({ cls: 'wikiflash-hit wikiflash-preview-bracket', text });
+    el.dataset.wikiflashPreviewMode = mode;
+    this.applyPreviewStyle(el, mode);
+    this.previewEls.add(el);
+    return el;
+  }
+
+  renderPreview(setting, mode) {
+    const dark = mode === 'dark';
+    setting.setName(dark ? 'Dark preview' : 'Light preview').setDesc(dark ? DARK_PREVIEW_DESC : PREVIEW_DESC);
+    this.styleSettingsDoc(setting.settingEl.ownerDocument);
+    const frame = setting.controlEl.createSpan({
+      cls: dark ? 'wikiflash-preview-frame wikiflash-preview-frame-dark' : 'wikiflash-preview-frame wikiflash-preview-frame-light',
+    });
+    const open = this.createPreviewBracket(frame, mode, '[[');
+    frame.createSpan({ cls: 'wikiflash-preview-link-text', text: 'WikiFlash' });
+    const close = this.createPreviewBracket(frame, mode, ']]');
+    return () => {
+      this.previewEls.delete(open);
+      this.previewEls.delete(close);
+    };
+  }
+
+  renderPreviewControls(setting) {
+    setting.setName('Preview controls').setDesc('Replay both light and dark samples without changing settings.');
+    setting.addButton((button) => {
+      button
+        .setButtonText('Replay previews')
+        .setTooltip('Replay both preview animations')
+        .onClick(() => this.replayPreview());
+    });
+  }
+
+  renderResetDefaults(setting) {
+    setting.setName('Reset defaults').setDesc(RESET_DEFAULTS_DESC);
+    setting.addButton((button) => {
+      button
+        .setButtonText('Reset')
+        .setTooltip('Restore the default WikiFlash appearance')
+        .onClick(async () => {
+          button.setDisabled(true);
+          try {
+            await this.resetDefaults();
+          } finally {
+            button.setDisabled(false);
+          }
+        });
+    });
+  }
+
+  async resetDefaults() {
+    this.plugin.settings = Object.assign({}, DEFAULT_SETTINGS);
+    await this.plugin.saveSettings();
+    this.refreshSettingsView();
+  }
+
+  refreshSettingsView() {
+    setTimeout(() => {
+      if (this.app.setting && typeof this.app.setting.openTabById === 'function') {
+        this.app.setting.openTabById(this.id);
+      } else if (this.app.setting && typeof this.app.setting.refreshCurrentPage === 'function') {
+        this.app.setting.refreshCurrentPage();
+      } else {
+        this.display();
+      }
+      setTimeout(() => this.replayPreview(), 0);
+    }, 0);
+  }
+
+  // Obsidian 1.13+: declarative settings are searchable in the new Settings UI.
+  // Older Obsidian builds ignore this method and use display() below.
+  getSettingDefinitions() {
+    return [
+      ...COLOR_SETTING_GROUPS.map((group) => ({
+        type: 'group',
+        heading: group.heading,
+        items: group.items.map((item) => ({
+          name: item.name,
+          desc: item.desc,
+          aliases: [item.key],
+          control: { type: 'color', key: item.key, defaultValue: DEFAULT_SETTINGS[item.key] },
+        })),
+      })),
+      {
+        name: 'Light preview',
+        desc: PREVIEW_DESC,
+        searchable: false,
+        render: (setting) => this.renderPreview(setting, 'light'),
+      },
+      {
+        name: 'Dark preview',
+        desc: DARK_PREVIEW_DESC,
+        searchable: false,
+        render: (setting) => this.renderPreview(setting, 'dark'),
+      },
+      {
+        name: 'Preview controls',
+        desc: 'Replay both light and dark samples without changing settings.',
+        aliases: ['replay preview', 'test preview', 'animation preview'],
+        render: (setting) => this.renderPreviewControls(setting),
+      },
+      {
+        type: 'group',
+        heading: SLIDER_SETTINGS_HEADING,
+        items: SLIDER_SETTINGS.map((item) => ({
+          name: item.name,
+          desc: item.desc,
+          aliases: [item.key],
+          control: {
+            type: 'slider',
+            key: item.key,
+            defaultValue: DEFAULT_SETTINGS[item.key],
+            min: item.min,
+            max: item.max,
+            step: item.step,
+          },
+        })),
+      },
+      {
+        name: 'Reset defaults',
+        desc: RESET_DEFAULTS_DESC,
+        aliases: ['restore defaults', 'default colours', 'default colors', 'reset colours', 'reset colors'],
+        render: (setting) => this.renderResetDefaults(setting),
+      },
+    ];
+  }
+
+  async setControlValue(key, value) {
+    this.plugin.settings[key] = value;
+    await this.plugin.saveSettings();
+    this.replayPreview();
+  }
+
+  getControlValue(key) {
+    return this.plugin.settings[key];
   }
 
   display() {
     const { containerEl } = this;
     containerEl.empty();
+    this.styleSettingsDoc(containerEl.ownerDocument);
 
-    const preview = new Setting(containerEl)
-      .setName('Preview')
-      .setDesc('A sample flash using your current settings. Replays when you change a value below.');
-    this.previewEl = preview.controlEl.createSpan({ cls: 'wikiflash-hit', text: '[[ ]]' });
-
-    new Setting(containerEl)
-      .setName('Enable flash')
-      .setDesc('Animate a highlight when a [[wikilink]] is completed.')
-      .addToggle((t) =>
-        t.setValue(this.plugin.settings.enabled).onChange(async (v) => {
-          this.plugin.settings.enabled = v;
-          await this.plugin.saveSettings();
-          this.replayPreview();
-        })
-      );
-
-    const colorSetting = (name, desc, key) =>
+    const colorSetting = (item) =>
       new Setting(containerEl)
-        .setName(name)
-        .setDesc(desc)
+        .setName(item.name)
+        .setDesc(item.desc)
         .addColorPicker((cp) =>
-          cp.setValue(this.plugin.settings[key]).onChange(async (v) => {
-            this.plugin.settings[key] = v;
+          cp.setValue(this.plugin.settings[item.key]).onChange(async (v) => {
+            this.plugin.settings[item.key] = v;
             await this.plugin.saveSettings();
             this.replayPreview();
           })
         );
 
-    new Setting(containerEl).setName('Light mode').setHeading();
-    colorSetting(
-      'Box colour (light)',
-      'Colour of the highlight box in light mode. Default is a vivid yellow, like Xcode.',
-      'colorLight'
-    );
-    colorSetting(
-      'Bracket text colour (light)',
-      'Colour of the [[ ]] characters during the flash in light mode. Use black for light boxes.',
-      'textLight'
-    );
+    for (const group of COLOR_SETTING_GROUPS) {
+      new Setting(containerEl).setName(group.heading).setHeading();
+      group.items.forEach(colorSetting);
+    }
 
-    new Setting(containerEl).setName('Dark mode').setHeading();
-    colorSetting(
-      'Box colour (dark)',
-      'Colour of the highlight box in dark mode.',
-      'colorDark'
-    );
-    colorSetting(
-      'Bracket text colour (dark)',
-      'Colour of the [[ ]] characters during the flash in dark mode. Use white for dark boxes (e.g. teal).',
-      'textDark'
-    );
+    this.renderPreview(new Setting(containerEl), 'light');
+    this.renderPreview(new Setting(containerEl), 'dark');
+    this.renderPreviewControls(new Setting(containerEl));
 
-    new Setting(containerEl)
-      .setName('Opacity')
-      .setDesc('Starting intensity of the flash before it fades to transparent.')
-      .addSlider((sl) =>
-        sl
-          .setLimits(0.1, 1, 0.05)
-          .setValue(this.plugin.settings.opacity)
-          .setDynamicTooltip()
-          .onChange(async (v) => {
-            this.plugin.settings.opacity = v;
-            await this.plugin.saveSettings();
-            this.replayPreview();
-          })
-      );
+    const sliderSetting = (item) =>
+      new Setting(containerEl)
+        .setName(item.name)
+        .setDesc(item.desc)
+        .addSlider((sl) =>
+          sl
+            .setLimits(item.min, item.max, item.step)
+            .setValue(this.plugin.settings[item.key])
+            .setDynamicTooltip()
+            .onChange(async (v) => {
+              this.plugin.settings[item.key] = v;
+              await this.plugin.saveSettings();
+              this.replayPreview();
+            })
+        );
 
-    new Setting(containerEl)
-      .setName('Duration')
-      .setDesc('How long the fade lasts, in milliseconds.')
-      .addSlider((sl) =>
-        sl
-          .setLimits(120, 1200, 20)
-          .setValue(this.plugin.settings.duration)
-          .setDynamicTooltip()
-          .onChange(async (v) => {
-            this.plugin.settings.duration = v;
-            await this.plugin.saveSettings();
-            this.replayPreview();
-          })
-      );
+    new Setting(containerEl).setName(SLIDER_SETTINGS_HEADING).setHeading();
+    SLIDER_SETTINGS.forEach(sliderSetting);
 
-    new Setting(containerEl)
-      .setName('Corner radius')
-      .setDesc('Roundness of the highlight box, in pixels.')
-      .addSlider((sl) =>
-        sl
-          .setLimits(0, 12, 1)
-          .setValue(this.plugin.settings.radius)
-          .setDynamicTooltip()
-          .onChange(async (v) => {
-            this.plugin.settings.radius = v;
-            await this.plugin.saveSettings();
-            this.replayPreview();
-          })
-      );
+    this.renderResetDefaults(new Setting(containerEl));
   }
 }

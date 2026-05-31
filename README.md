@@ -28,13 +28,14 @@ Everything is customizable under **Settings → WikiFlash**:
 
 | Setting | What it does |
 |---|---|
-| **Preview** | Shows a sample flash that replays as you change settings. |
-| **Enable flash** | Master on/off. |
 | **Box colour (light / dark)** | Colour of the highlight box, set separately for light and dark mode (default: a vivid yellow, like Xcode). The matching pair is chosen automatically and updates live when you switch theme. |
 | **Bracket text colour (light / dark)** | Colour of the `[[ ]]` characters during the flash, per theme. Use white for a dark box, black for a light one. |
+| **Light / dark previews** | Show separate sample flashes for the light and dark colour pairs. |
+| **Preview controls** | Replay both preview animations without changing settings. |
 | **Opacity** | Starting intensity before the fade. |
 | **Duration** | How long the flash lasts, in milliseconds. |
 | **Corner radius** | Roundness of the highlight box. |
+| **Reset defaults** | Restores the default colours, opacity, duration, and corner radius. |
 
 Respects your system **Reduce motion** setting (no animation when enabled).
 

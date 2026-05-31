@@ -51,7 +51,7 @@
   100% {
     background-color: var(--wikiflash-bg-end, rgba(255, 243, 77, 0));
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0);
-    color: var(--text-faint);
+    color: var(--wikiflash-text-rest, var(--text-faint));
   }
 }
 
@@ -64,7 +64,47 @@
 /* The settings-tab preview swatch: a legible `[[ ]]` sample that replays the
    flash. Scoped to the setting item so it never touches editor marks. */
 .setting-item .wikiflash-hit {
+  display: inline-block;
+  flex: 0 0 auto;
   font-family: var(--font-monospace);
   font-size: var(--font-ui-medium);
+  line-height: 1;
   padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.setting-item .wikiflash-preview-frame {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  min-inline-size: 148px;
+  padding: 6px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-medium);
+  line-height: 1;
+}
+
+.setting-item .wikiflash-preview-frame-light {
+  background: #f8f7f2;
+}
+
+.setting-item .wikiflash-preview-frame-dark {
+  background: #1f1f23;
+}
+
+.setting-item .wikiflash-preview-bracket {
+  padding-inline: 4px;
+}
+
+.setting-item .wikiflash-preview-link-text {
+  color: var(--text-normal);
+  padding-inline: 2px;
+}
+
+.setting-item .wikiflash-preview-frame-dark .wikiflash-preview-link-text {
+  color: #d4d4d8;
 }

@@ -46,6 +46,7 @@ const WF_VARS = [
 ];
 
 const DEFAULT_SETTINGS = {
+  enabled: true,
   // Box ("flash") and bracket-text colours are per-theme: the matching pair is
   // chosen from the active window's light/dark mode and re-picked on theme change.
   colorLight: '#fff34d', // box colour in light mode — clean yellow, like Xcode
@@ -61,6 +62,12 @@ const PREVIEW_DESC = 'A sample wikilink using the light-mode colours. Replays wh
 const DARK_PREVIEW_DESC = 'A sample wikilink using the dark-mode colours.';
 const RESET_DEFAULTS_DESC = 'Restore the default colours, opacity, duration, and corner radius.';
 const SLIDER_SETTINGS_HEADING = 'Flash shape and timing';
+
+const ENABLED_SETTING = {
+  name: 'Enable flash',
+  desc: 'Animate a highlight when a [[wikilink]] is completed or entered.',
+  key: 'enabled',
+};
 
 const COLOR_SETTING_GROUPS = [
   {
@@ -230,6 +237,7 @@ const wikiFlashDetector = ViewPlugin.fromClass(
     }
 
     update(update) {
+      if (!currentSettings.enabled) return;
       // IME safety: never react mid-composition (Italian accents etc.).
       if (update.view.composing) return;
 
@@ -285,7 +293,6 @@ module.exports = class WikiFlashPlugin extends Plugin {
       }
       delete this.settings.color;
       delete this.settings.text;
-      delete this.settings.enabled;
     }
     currentSettings = this.settings;
 
@@ -469,7 +476,9 @@ class WikiFlashSettingTab extends PluginSettingTab {
 
   refreshSettingsView() {
     setTimeout(() => {
-      if (this.app.setting && typeof this.app.setting.openTabById === 'function') {
+      if (typeof this.update === 'function') {
+        this.update();
+      } else if (this.app.setting && typeof this.app.setting.openTabById === 'function') {
         this.app.setting.openTabById(this.id);
       } else if (this.app.setting && typeof this.app.setting.refreshCurrentPage === 'function') {
         this.app.setting.refreshCurrentPage();
@@ -480,10 +489,57 @@ class WikiFlashSettingTab extends PluginSettingTab {
     }, 0);
   }
 
+  renderEnabled(setting) {
+    setting.setName(ENABLED_SETTING.name).setDesc(ENABLED_SETTING.desc);
+    setting.addToggle((toggle) =>
+      toggle.setValue(this.plugin.settings.enabled).onChange(async (value) => {
+        this.plugin.settings.enabled = value;
+        await this.plugin.saveSettings();
+        this.replayPreview();
+      })
+    );
+  }
+
+  renderColorSetting(setting, item) {
+    setting
+      .setName(item.name)
+      .setDesc(item.desc)
+      .addColorPicker((cp) =>
+        cp.setValue(this.plugin.settings[item.key]).onChange(async (value) => {
+          this.plugin.settings[item.key] = value;
+          await this.plugin.saveSettings();
+          this.replayPreview();
+        })
+      );
+  }
+
+  renderSliderSetting(setting, item) {
+    setting
+      .setName(item.name)
+      .setDesc(item.desc)
+      .addSlider((slider) =>
+        slider
+          .setLimits(item.min, item.max, item.step)
+          .setValue(this.plugin.settings[item.key])
+          .setDynamicTooltip()
+          .onChange(async (value) => {
+            this.plugin.settings[item.key] = value;
+            await this.plugin.saveSettings();
+            this.replayPreview();
+          })
+      );
+  }
+
   // Obsidian 1.13+: declarative settings are searchable in the new Settings UI.
   // Older Obsidian builds ignore this method and use display() below.
   getSettingDefinitions() {
     return [
+      {
+        name: ENABLED_SETTING.name,
+        desc: ENABLED_SETTING.desc,
+        aliases: ['enabled', 'toggle flash', 'turn off flash'],
+        render: (setting) => this.renderEnabled(setting),
+      },
       ...COLOR_SETTING_GROUPS.map((group) => ({
         type: 'group',
         heading: group.heading,
@@ -491,7 +547,7 @@ class WikiFlashSettingTab extends PluginSettingTab {
           name: item.name,
           desc: item.desc,
           aliases: [item.key],
-          control: { type: 'color', key: item.key, defaultValue: DEFAULT_SETTINGS[item.key] },
+          render: (setting) => this.renderColorSetting(setting, item),
         })),
       })),
       {
@@ -519,14 +575,7 @@ class WikiFlashSettingTab extends PluginSettingTab {
           name: item.name,
           desc: item.desc,
           aliases: [item.key],
-          control: {
-            type: 'slider',
-            key: item.key,
-            defaultValue: DEFAULT_SETTINGS[item.key],
-            min: item.min,
-            max: item.max,
-            step: item.step,
-          },
+          render: (setting) => this.renderSliderSetting(setting, item),
         })),
       },
       {
@@ -538,60 +587,24 @@ class WikiFlashSettingTab extends PluginSettingTab {
     ];
   }
 
-  async setControlValue(key, value) {
-    this.plugin.settings[key] = value;
-    await this.plugin.saveSettings();
-    this.replayPreview();
-  }
-
-  getControlValue(key) {
-    return this.plugin.settings[key];
-  }
-
   display() {
     const { containerEl } = this;
     containerEl.empty();
     this.styleSettingsDoc(containerEl.ownerDocument);
 
-    const colorSetting = (item) =>
-      new Setting(containerEl)
-        .setName(item.name)
-        .setDesc(item.desc)
-        .addColorPicker((cp) =>
-          cp.setValue(this.plugin.settings[item.key]).onChange(async (v) => {
-            this.plugin.settings[item.key] = v;
-            await this.plugin.saveSettings();
-            this.replayPreview();
-          })
-        );
+    this.renderEnabled(new Setting(containerEl));
 
     for (const group of COLOR_SETTING_GROUPS) {
       new Setting(containerEl).setName(group.heading).setHeading();
-      group.items.forEach(colorSetting);
+      group.items.forEach((item) => this.renderColorSetting(new Setting(containerEl), item));
     }
 
     this.renderPreview(new Setting(containerEl), 'light');
     this.renderPreview(new Setting(containerEl), 'dark');
     this.renderPreviewControls(new Setting(containerEl));
 
-    const sliderSetting = (item) =>
-      new Setting(containerEl)
-        .setName(item.name)
-        .setDesc(item.desc)
-        .addSlider((sl) =>
-          sl
-            .setLimits(item.min, item.max, item.step)
-            .setValue(this.plugin.settings[item.key])
-            .setDynamicTooltip()
-            .onChange(async (v) => {
-              this.plugin.settings[item.key] = v;
-              await this.plugin.saveSettings();
-              this.replayPreview();
-            })
-        );
-
     new Setting(containerEl).setName(SLIDER_SETTINGS_HEADING).setHeading();
-    SLIDER_SETTINGS.forEach(sliderSetting);
+    SLIDER_SETTINGS.forEach((item) => this.renderSliderSetting(new Setting(containerEl), item));
 
     this.renderResetDefaults(new Setting(containerEl));
   }

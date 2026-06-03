@@ -28,6 +28,7 @@ Everything is customizable under **Settings → WikiFlash**:
 
 | Setting | What it does |
 |---|---|
+| **Enable flash** | Turns the editor flash on or off without uninstalling or disabling the plugin. |
 | **Box colour (light / dark)** | Colour of the highlight box, set separately for light and dark mode (default: a vivid yellow, like Xcode). The matching pair is chosen automatically and updates live when you switch theme. |
 | **Bracket text colour (light / dark)** | Colour of the `[[ ]]` characters during the flash, per theme. Use white for a dark box, black for a light one. |
 | **Light / dark previews** | Show separate sample flashes for the light and dark colour pairs. |
@@ -35,7 +36,7 @@ Everything is customizable under **Settings → WikiFlash**:
 | **Opacity** | Starting intensity before the fade. |
 | **Duration** | How long the flash lasts, in milliseconds. |
 | **Corner radius** | Roundness of the highlight box. |
-| **Reset defaults** | Restores the default colours, opacity, duration, and corner radius. |
+| **Reset defaults** | Restores the default enabled state, colours, opacity, duration, and corner radius. |
 
 Respects your system **Reduce motion** setting (no animation when enabled).
 
